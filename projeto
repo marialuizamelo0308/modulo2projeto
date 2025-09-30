@@ -1,0 +1,223 @@
+import promptSync from 'prompt-sync';
+const entrada = promptSync({ sigint: false });
+
+
+// =====================
+// Classe Produto
+// =====================
+class Produto {
+    private nome: string;
+    private codigo: string;
+    private preco: number;
+    private quantidade: number;
+
+    constructor(nome: string, codigo: string, preco: number, quantidade: number) {
+        this.nome = nome,
+        this.codigo = codigo,
+        this.preco = preco,
+        this.quantidade = quantidade
+    }
+
+    getNome(): string {
+        return this.nome;
+    }
+
+    getCodigo(): string {
+        return this.codigo;
+    }
+
+    getPreco(): number {
+        return this.preco;
+    }
+
+    getQuantidade(): number {
+        return this.quantidade;
+    }
+
+    adicionarQuantidade(qtd: number): void {
+        if (qtd < 0) throw new Error("Quantidade não pode ser negativa!");
+        this.quantidade += qtd;
+    }
+
+    removerQuantidade(qtd: number): void {
+        if (qtd < 0) throw new Error("Quantidade não pode ser negativa!");
+        if (qtd > this.quantidade) throw new Error("Quantidade insuficiente em estoque!");
+        this.quantidade -= qtd;
+    }
+}
+
+// =====================
+// Classe abstrata Movimentacao
+// =====================
+abstract class Movimentacao {
+    protected data: Date;
+    protected produto: Produto;
+    protected quantidade: number;
+
+    constructor(produto: Produto, quantidade: number) {
+        this.data = new Date();
+        this.produto = produto;
+        this.quantidade = quantidade;
+    }
+
+    public abstract processar(): void;
+
+    getData(): Date {
+        return this.data;
+    }
+
+    getProduto(): Produto {
+        return this.produto;
+    }
+
+    getQuantidade(): number {
+        return this.quantidade;
+    }
+}
+
+// =====================
+// Classe Entrada
+// =====================
+class Entrada extends Movimentacao {
+    public processar(): void {
+        this.produto.adicionarQuantidade(this.quantidade);
+    }
+}
+
+// =====================
+// Classe Saida
+// =====================
+class Saida extends Movimentacao {
+    public processar(): void {
+        if (this.produto.getQuantidade() < this.quantidade) {
+            throw new Error('Erro: Quantidade insuficiente em estoque.');
+        }
+        this.produto.removerQuantidade(this.quantidade);
+    }
+}
+
+// =====================
+// Classe Estoque
+// =====================
+class Estoque {
+    private produtos: Produto[] = [];
+    private movimentacoes: Movimentacao[] = [];
+
+    public adicionarProduto(produto: Produto): void {
+        const existente = this.produtos.find(p => p.getCodigo() === produto.getCodigo());
+        if (existente) {
+            throw new Error("Produto já cadastrado!");
+        }
+        this.produtos.push(produto);
+    }
+
+    public encontrarProduto(codigo: string): Produto | undefined {
+        return this.produtos.find(p => p.getCodigo() === codigo);
+    }
+
+    public processarMovimentacao(movimentacao: Movimentacao): void {
+        movimentacao.processar();
+        this.movimentacoes.push(movimentacao);
+    }
+
+    public gerarRelatorioEstoque(): void {
+        console.log('\n--- Relatório de Estoque ---');
+        if (this.produtos.length === 0) {
+            console.log("Nenhum produto cadastrado.");
+            return;
+        }
+        this.produtos.forEach(produto => {
+            console.log(`
+Produto: ${produto.getNome()}
+Código: ${produto.getCodigo()}
+Preço: R$ ${produto.getPreco().toFixed(2)}
+Quantidade: ${produto.getQuantidade()}
+            `);
+        });
+    }
+}
+
+// =====================
+// Programa principal
+// =====================
+const estoque = new Estoque();
+
+function exibirMenu(): void {
+    let opcao = "";
+    do {
+        console.log('\n--- Sistema de Monitoramento de Estoque ---');
+        console.log('1. Cadastrar produto');
+        console.log('2. Registrar entrada');
+        console.log('3. Registrar saída');
+        console.log('4. Gerar relatório de estoque');
+        console.log('5. Sair');
+
+        opcao = entrada('Escolha uma opção: ');
+
+        switch (opcao) {
+            case '1': cadastrarProduto(); break;
+            case '2': registrarEntrada(); break;
+            case '3': registrarSaida(); break;
+            case '4': estoque.gerarRelatorioEstoque(); break;
+            case '5': console.log('\nSistema encerrado. Obrigado!'); break;
+            default: console.log('Opção inválida.'); break;
+        }
+    } while (opcao !== '5');
+}
+
+// --- Cadastro de produto ---
+function cadastrarProduto(): void {
+    const nome = entrada('Nome do produto: ');
+    const codigo = entrada('Código: ');
+    const preco = parseFloat(entrada('Preço: '));
+    const quantidade = parseInt(entrada('Quantidade inicial: '));
+
+    try {
+        const novoProduto = new Produto(nome, codigo, preco, quantidade);
+        estoque.adicionarProduto(novoProduto);
+        console.log(`Produto "${nome}" cadastrado com sucesso!`);
+    } catch (error: any) {
+        console.error(error.message);
+    }
+}
+
+// --- Entrada de produtos ---
+function registrarEntrada(): void {
+    const codigo = entrada('Código do produto: ');
+    const produto = estoque.encontrarProduto(codigo);
+
+    if (produto) {
+        const quantidade = parseInt(entrada('Quantidade a adicionar: '));
+        try {
+            const entradaMov = new Entrada(produto, quantidade);
+            estoque.processarMovimentacao(entradaMov);
+            console.log(`Entrada de ${quantidade} unidades do produto "${produto.getNome()}" registrada.`);
+        } catch (error: any) {
+            console.error(error.message);
+        }
+    } else {
+        console.log('Produto não encontrado.');
+    }
+}
+
+// --- Saída de produtos ---
+function registrarSaida(): void {
+    const codigo = entrada('Código do produto: ');
+    const produto = estoque.encontrarProduto(codigo);
+
+    if (produto) {
+        const quantidade = parseInt(entrada('Quantidade a remover: '));
+        try {
+            const saidaMov = new Saida(produto, quantidade);
+            estoque.processarMovimentacao(saidaMov);
+            console.log(`Saída de ${quantidade} unidades do produto "${produto.getNome()}" registrada.`);
+        } catch (error: any) {
+            console.error(error.message);
+        }
+    } else {
+        console.log('Produto não encontrado.');
+    }
+}
+
+// Inicia o programa
+exibirMenu();
